@@ -35,3 +35,22 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+
+
+# Ignore the local dependency folder
+lambda_code_folder/node_modules/
+
+# Ignore the zip file Terraform creates
+function.zip
+
+# Ignore Terraform's internal folder
+.terraform/
+
+# Ignore any zip files
+*.zip
+
+# Ignore Terraform state
+.terraform/
+*.tfstate*
+
+node_modules/
