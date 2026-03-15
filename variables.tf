@@ -82,4 +82,12 @@ variable "create_spot_role" {
   type = bool
   description = "enable or disable service linked role"
 }
+variable "stage_name" {
+type = string
+description = "API Gateway stage name"  
+}
 
+variable "kms_key_arn" {
+  type = string
+  description = "KMS Key ARN for encrypting secrets (optional, but recommended)"
+}

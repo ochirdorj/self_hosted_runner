@@ -26,19 +26,39 @@ data "aws_iam_policy_document" "lambda_policy_doc" {
   }
   
   # Ec2 instance role
+statement {
+  sid     = "EC2RunInstances"
+  actions = ["ec2:RunInstances"]
+  effect  = "Allow"
+  resources = [
+    "arn:aws:ec2:*:*:instance/*",
+    "arn:aws:ec2:*:*:subnet/*",
+    "arn:aws:ec2:*:*:security-group/*",
+    "arn:aws:ec2:*:*:network-interface/*",
+    "arn:aws:ec2:*:*:volume/*",
+    "arn:aws:ec2:*:*:launch-template/*",
+    "arn:aws:ec2:*::image/*"
+  ]
+}
+  
   statement {
-    sid     = "EC2GeneralManagement"
-    actions = [
-     "ec2:RunInstances",
+  sid     = "EC2Describe"
+  actions = [
     "ec2:DescribeInstances",
-    "ec2:CreateTags",
     "ec2:DescribeLaunchTemplates",
     "ec2:DescribeLaunchTemplateVersions"
-    ]
-    effect = "Allow"
-    resources = ["*"] 
-  }
-  
+  ]
+  effect    = "Allow"
+  resources = ["*"]  # ← Describe actions always require *
+}
+
+statement {
+  sid       = "EC2CreateTags"
+  actions   = ["ec2:CreateTags"]
+  effect    = "Allow"
+  resources = ["*"]
+}
+
   statement {
       sid = "EC2RestrictedTerminate"
       actions = ["ec2:TerminateInstances"]
@@ -128,10 +148,18 @@ data "aws_iam_policy_document" "runner_policy_doc" {
   # Secrets Manager (to get GitHub App Credentials)
   statement {
     sid     = "SecretsManagerAccess"
-    actions = ["secretsmanager:GetSecretValue", "kms:Decrypt"]
+    actions = ["secretsmanager:GetSecretValue"]
     effect = "Allow"
     resources = [data.aws_secretsmanager_secret.github_app.arn]
   }
+
+  statement {
+    sid     = "KMSDecrypt"
+    actions = ["kms:Decrypt"]
+    effect = "Allow"
+    resources = [var.kms_key_arn]
+  }
+
 }
 
 # API Gateway Assume Role Policy Document
@@ -160,15 +188,15 @@ data "aws_iam_policy_document" "apigw_sqs_policy_doc" {
 
 # Lambda Execution Role
 resource "aws_iam_role" "lambda_exec_role" {
-  name               = "runner-manager-lambda-role"
+  name               = "${local.resource_name_prefix}-lambda-exec-role"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_doc.json
-  tags = var.tags
+  tags = local.propagated_tags
 }
 
 resource "aws_iam_policy" "lambda_policy" {
-  name   = "runner-manager-lambda-policy"
+  name   = "${local.resource_name_prefix}-lambda-policy"
   policy = data.aws_iam_policy_document.lambda_policy_doc.json
-  tags = var.tags
+  tags = local.propagated_tags
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_attach_policy" {
@@ -179,21 +207,21 @@ resource "aws_iam_role_policy_attachment" "lambda_attach_policy" {
 
 # EC2 Instance Profile Role
 resource "aws_iam_role" "runner_role" {
-  name               = "github-runner-ec2-role"
+  name               = "${local.resource_name_prefix}-runner-ec2-role"
   assume_role_policy = data.aws_iam_policy_document.runner_assume_role_doc.json
-  tags = var.tags
+  tags = local.propagated_tags
 }
 
 resource "aws_iam_instance_profile" "runner_instance_profile" {
-  name = "github-runner-instance-profile"
+  name = "${local.resource_name_prefix}-runner-profile"
   role = aws_iam_role.runner_role.name
-  tags = var.tags
+  tags = local.propagated_tags
 }
 
 resource "aws_iam_policy" "runner_policy" {
-  name   = "github-runner-ec2-policy"
+  name   = "${local.resource_name_prefix}-runner-ec2-policy"
   policy = data.aws_iam_policy_document.runner_policy_doc.json
-  tags = var.tags
+  tags = local.propagated_tags
 }
 
 resource "aws_iam_role_policy_attachment" "runner_attach_policy" {
@@ -210,15 +238,15 @@ resource "aws_iam_role_policy_attachment" "runner_attach_ssm" {
 
 # 3. API Gateway IAM Role (to send messages to SQS)
 resource "aws_iam_role" "apigw_sqs_role" {
-  name               = "apigw-to-sqs-role"
+  name               = "${local.resource_name_prefix}-apigw-sqs-role"
   assume_role_policy = data.aws_iam_policy_document.apigw_sqs_assume_role_doc.json
-  tags = var.tags
+  tags = local.propagated_tags
 }
 
 resource "aws_iam_policy" "apigw_sqs_policy" {
-  name   = "apigw-sqs-send-message-policy"
+  name   = "${local.resource_name_prefix}-apigw-sqs-policy"
   policy = data.aws_iam_policy_document.apigw_sqs_policy_doc.json
-  tags = var.tags
+  tags = local.propagated_tags
 }
 
 resource "aws_iam_role_policy_attachment" "apigw_sqs_attach_policy" {

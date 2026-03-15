@@ -1,7 +1,7 @@
 # 4. Security Group 
 resource "aws_security_group" "lambda_sg" {
   count       = length(var.lambda_subnets) > 0 ? 1 : 0
-  name        = "lambda-runner-manager-sg"
+  name        = "${local.resource_name_prefix}-lambda-runner-sg"
   description = "Allow outbound traffic from Lambda"
   vpc_id      = var.vpc_id
 
@@ -12,22 +12,22 @@ resource "aws_security_group" "lambda_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = var.tags
+  tags = local.propagated_tags
 }
 
 data "archive_file" "lambda_zip" {
   type        = "zip"
-  source_dir  = "${path.root}/lambda_code_folder" 
-  output_path = "${path.root}/function.zip"    
+  source_dir  = "${path.module}/lambda_code_folder"
+  output_path = "${path.module}/function.zip"    
 }
 
 # 6. Lambda: Runner Manager
 resource "aws_lambda_function" "runner_manager" {
   filename         = data.archive_file.lambda_zip.output_path
-  function_name    = "github-runner-manager"
+  function_name    = "${local.resource_name_prefix}-runner-manager"
   role             = aws_iam_role.lambda_exec_role.arn
   handler          = "index.handler"
-  runtime          = "nodejs20.x"
+  runtime          = "nodejs22.x"
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
   architectures    = ["x86_64"]  
   timeout = 30
@@ -37,6 +37,9 @@ resource "aws_lambda_function" "runner_manager" {
     create_before_destroy = true
   }
 
+  dead_letter_config {
+    target_arn = aws_sqs_queue.runner_queue_dead_letter.arn
+  }
 
   environment {
     variables = {
@@ -58,7 +61,7 @@ resource "aws_lambda_function" "runner_manager" {
     }
   }
 
-  tags = var.tags
+  tags = local.propagated_tags
 }
 
 resource "aws_lambda_event_source_mapping" "github_sqs_trigger" {
@@ -67,5 +70,11 @@ resource "aws_lambda_event_source_mapping" "github_sqs_trigger" {
   function_response_types = ["ReportBatchItemFailures"]
   enabled = true
   batch_size = 10
-  tags = var.tags
+  tags = local.propagated_tags
+}
+
+resource "aws_cloudwatch_log_group" "lambda" {
+  name              = "/aws/lambda/${local.resource_name_prefix}-runner-manager"
+  retention_in_days = 30
+  tags              = local.propagated_tags
 }
