@@ -48,19 +48,9 @@ variable "lambda_subnets" {
   description = "private subnets"
 }
 
-variable "region" {
-  type = string
-  description = "aws region"
-}
-
 variable "github_app_credentials_secret_name" {
     type = string
     description = "just leave it as is"
-  }
-
-  variable "github_owner" {
-    type = string
-    description = "name of the organization or repo"
   }
 
 variable "runner_labels" {
