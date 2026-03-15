@@ -12,7 +12,9 @@ resource "aws_security_group" "lambda_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = local.propagated_tags
+  tags = merge(local.propagated_tags, {
+    Name = "${local.resource_name_prefix}-lambda-runner-sg"
+  })
 }
 
 data "archive_file" "lambda_zip" {

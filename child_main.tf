@@ -39,7 +39,9 @@ resource "aws_security_group" "runner" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = var.tags
+  tags = merge(local.propagated_tags, {
+    Name = "${local.resource_name_prefix}-runner-sg"
+  })
 }
 
 
@@ -47,8 +49,11 @@ resource "aws_launch_template" "example" {
   name = var.launch_template
   image_id    = var.image_id
   instance_type = var.instance_type[0]
-  tags = var.tags
   vpc_security_group_ids = [aws_security_group.runner.id]
+
+  tags = merge(local.propagated_tags, {
+    Name = "${local.resource_name_prefix}-launch-template"
+  })
 
   lifecycle {
     create_before_destroy = true
@@ -82,7 +87,7 @@ resource "aws_launch_template" "example" {
   tag_specifications {
     resource_type = "instance"
     tags = merge(local.propagated_tags, {
-      Name = "${local.resource_name_prefix}-self-hosted-runner-template"
+      Name = "${local.resource_name_prefix}-runner"
     })
     }
   

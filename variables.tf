@@ -8,11 +8,6 @@
     description = "ec2 instance type"
   }
 
-  variable "tags" {
-    type = map(string)
-    description = "tag of the resource"
-  }
-
 variable "Environment" {
   type = string
   description = "tag for asg"
