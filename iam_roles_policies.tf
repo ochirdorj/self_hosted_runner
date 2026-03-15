@@ -157,7 +157,7 @@ data "aws_iam_policy_document" "runner_policy_doc" {
     sid     = "KMSDecrypt"
     actions = ["kms:Decrypt"]
     effect = "Allow"
-    resources = [var.kms_key_arn]
+    resources = var.kms_key_arn != null ? [var.kms_key_arn] : ["*"]
   }
 
 }
