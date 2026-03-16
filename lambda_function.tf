@@ -1,4 +1,4 @@
-# 4. Security Group
+# Security Group for Lambda
 resource "aws_security_group" "lambda_sg" {
   count       = length(var.lambda_subnets) > 0 ? 1 : 0
   name        = "${local.resource_name_prefix}-lambda-runner-sg"
@@ -29,8 +29,8 @@ resource "aws_lambda_function" "runner_manager" {
   timeout          = 30
   memory_size      = 512
 
-    depends_on = [
-    time_sleep.wait_for_iam_propagation    # ← waits 30s after all policies attached
+  depends_on = [
+    time_sleep.wait_for_iam_propagation
   ]
 
   lifecycle {
@@ -63,24 +63,17 @@ resource "aws_lambda_function" "runner_manager" {
   tags = local.propagated_tags
 }
 
-resource "aws_iam_role_policy_attachment" "apigw_cloudwatch_attach" {
-  role       = aws_iam_role.apigw_cloudwatch_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+resource "aws_lambda_event_source_mapping" "github_sqs_trigger" {
+  event_source_arn        = aws_sqs_queue.runner_queue.arn
+  function_name           = aws_lambda_function.runner_manager.function_name
+  function_response_types = ["ReportBatchItemFailures"]
+  enabled                 = true
+  batch_size              = 10
+  tags                    = local.propagated_tags
 }
 
-# Account-level setting — tells API Gateway which role to use for CloudWatch
-resource "aws_api_gateway_account" "main" {
-  cloudwatch_role_arn = aws_iam_role.apigw_cloudwatch_role.arn
-}
-
-# Wait for IAM to propagate before creating Lambda
-resource "time_sleep" "wait_for_iam_propagation" {
-  create_duration = "30s"
-
-  depends_on = [
-    aws_iam_role_policy_attachment.lambda_attach_policy,
-    aws_iam_role_policy_attachment.lambda_basic_execution,
-    aws_iam_role_policy_attachment.lambda_sqs_execution,
-    aws_iam_role_policy_attachment.lambda_vpc_access,
-  ]
+resource "aws_cloudwatch_log_group" "lambda" {
+  name              = "/aws/lambda/${local.resource_name_prefix}-runner-manager"
+  retention_in_days = 30
+  tags              = local.propagated_tags
 }
