@@ -253,3 +253,31 @@ resource "aws_iam_role_policy_attachment" "apigw_sqs_attach_policy" {
   role       = aws_iam_role.apigw_sqs_role.name
   policy_arn = aws_iam_policy.apigw_sqs_policy.arn
 }
+
+# IAM role for API Gateway to write to CloudWatch
+resource "aws_iam_role" "apigw_cloudwatch_role" {
+  name = "${local.resource_name_prefix}-apigw-cloudwatch-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = {
+        Service = "apigateway.amazonaws.com"
+      }
+    }]
+  })
+
+  tags = local.propagated_tags
+}
+
+resource "aws_iam_role_policy_attachment" "apigw_cloudwatch_attach" {
+  role       = aws_iam_role.apigw_cloudwatch_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+}
+
+# Account-level setting — tells API Gateway which role to use for CloudWatch
+resource "aws_api_gateway_account" "main" {
+  cloudwatch_role_arn = aws_iam_role.apigw_cloudwatch_role.arn
+}
