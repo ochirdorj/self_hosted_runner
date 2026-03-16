@@ -29,6 +29,12 @@ resource "aws_lambda_function" "runner_manager" {
   timeout          = 30
   memory_size      = 512
 
+  depends_on = [
+    aws_iam_role_policy_attachment.lambda_attach_policy,      # ← wait for policy
+    aws_iam_role_policy_attachment.lambda_basic_execution,    # ← wait for basic execution
+    aws_iam_role_policy_attachment.lambda_sqs_execution,      # ← wait for sqs execution
+  ]
+
   lifecycle {
     create_before_destroy = true
   }
