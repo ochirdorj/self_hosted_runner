@@ -1,81 +1,294 @@
-# 4. Security Group
-resource "aws_security_group" "lambda_sg" {
-  count       = length(var.lambda_subnets) > 0 ? 1 : 0
-  name        = "${local.resource_name_prefix}-lambda-runner-sg"
-  description = "Allow outbound traffic from Lambda"
-  vpc_id      = var.vpc_id
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = merge(local.propagated_tags, {
-    Name = "${local.resource_name_prefix}-lambda-runner-sg"
-  })
+# IAM policy documents
+resource "aws_iam_service_linked_role" "spot" {
+  count            = var.create_spot_role ? 1 : 0
+  aws_service_name = "spot.amazonaws.com"
 }
 
-# Lambda: Runner Manager
-resource "aws_lambda_function" "runner_manager" {
-  filename         = var.lambda_zip_path
-  function_name    = "${local.resource_name_prefix}-runner-manager"
-  role             = aws_iam_role.lambda_exec_role.arn
-  handler          = "index.handler"
-  runtime          = "nodejs22.x"
-  source_code_hash = fileexists(var.lambda_zip_path) ? filebase64sha256(var.lambda_zip_path) : null
-  architectures    = ["x86_64"]
-  timeout          = 30
-  memory_size      = 512
+# Lambda Assume Role Policy Document
+data "aws_iam_policy_document" "lambda_assume_role_doc" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    effect  = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
 
-  depends_on = [
-    aws_iam_role_policy_attachment.lambda_attach_policy,      # ← wait for policy
-    aws_iam_role_policy_attachment.lambda_basic_execution,    # ← wait for basic execution
-    aws_iam_role_policy_attachment.lambda_sqs_execution,      # ← wait for sqs execution
-  ]
+# Lambda Execution Permissions Policy Document
+data "aws_iam_policy_document" "lambda_policy_doc" {
 
-  lifecycle {
-    create_before_destroy = true
+  statement {
+    sid       = "SecretsManagerAccess"
+    actions   = ["secretsmanager:GetSecretValue"]
+    effect    = "Allow"
+    resources = [data.aws_secretsmanager_secret.github_app.arn]
   }
 
-  dead_letter_config {
-    target_arn = aws_sqs_queue.runner_queue_dead_letter.arn
+  statement {
+    sid     = "EC2RunInstances"
+    actions = ["ec2:RunInstances"]
+    effect  = "Allow"
+    resources = [
+      "arn:aws:ec2:*:*:instance/*",
+      "arn:aws:ec2:*:*:subnet/*",
+      "arn:aws:ec2:*:*:security-group/*",
+      "arn:aws:ec2:*:*:network-interface/*",
+      "arn:aws:ec2:*:*:volume/*",
+      "arn:aws:ec2:*:*:launch-template/*",
+      "arn:aws:ec2:*::image/*"
+    ]
   }
 
-  environment {
-    variables = {
-      SECRET_NAME    = var.github_app_credentials_secret_name
-      LT_NAME        = var.launch_template
-      GH_LABELS      = var.runner_labels
-      SUBNET_IDS     = join(",", var.lambda_subnets)
-      SG_ID          = aws_security_group.runner.id
-      INSTANCE_TYPES = join(",", var.instance_type)
+  statement {
+    sid     = "EC2Describe"
+    actions = [
+      "ec2:DescribeInstances",
+      "ec2:DescribeLaunchTemplates",
+      "ec2:DescribeLaunchTemplateVersions"
+    ]
+    effect    = "Allow"
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "EC2CreateTags"
+    actions   = ["ec2:CreateTags"]
+    effect    = "Allow"
+    resources = ["*"]
+  }
+
+  statement {
+    sid     = "EC2RestrictedTerminate"
+    actions = ["ec2:TerminateInstances"]
+    effect  = "Allow"
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:ResourceTag/Team"
+      values   = ["ap13"]
     }
   }
 
-  dynamic "vpc_config" {
-    for_each = length(var.lambda_subnets) > 0 ? [1] : []
-    content {
-      subnet_ids         = var.lambda_subnets
-      security_group_ids = aws_security_group.lambda_sg[*].id
+  statement {
+    sid       = "IAMPassRole"
+    actions   = ["iam:PassRole"]
+    effect    = "Allow"
+    resources = [aws_iam_role.runner_role.arn]
+  }
+
+  statement {
+    sid     = "VPCAccess"
+    actions = [
+      "ec2:CreateNetworkInterface",
+      "ec2:DescribeNetworkInterfaces",
+      "ec2:DeleteNetworkInterface"
+    ]
+    effect    = "Allow"
+    resources = ["*"]
+  }
+
+  statement {
+    sid     = "SQSConsumption"
+    actions = [
+      "sqs:ReceiveMessage",
+      "sqs:DeleteMessage",
+      "sqs:GetQueueAttributes"
+    ]
+    effect    = "Allow"
+    resources = [aws_sqs_queue.runner_queue.arn]
+  }
+
+  # ← ADDED: Lambda needs SendMessage to write failed jobs to DLQ
+  statement {
+    sid       = "SQSDLQSendMessage"
+    actions   = ["sqs:SendMessage"]
+    effect    = "Allow"
+    resources = [aws_sqs_queue.runner_queue_dead_letter.arn]
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
+  role       = aws_iam_role.lambda_exec_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_sqs_execution" {
+  role       = aws_iam_role.lambda_exec_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
+  count      = length(var.lambda_subnets) > 0 ? 1 : 0
+  role       = aws_iam_role.lambda_exec_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
+# EC2 Runner Assume Role Policy Document
+data "aws_iam_policy_document" "runner_assume_role_doc" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    effect  = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
     }
   }
+}
+
+# EC2 Runner Permissions Policy Document
+data "aws_iam_policy_document" "runner_policy_doc" {
+
+  statement {
+    sid     = "CloudWatchLogs"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents"
+    ]
+    effect    = "Allow"
+    resources = ["arn:aws:logs:*:*:log-group:/aws/ec2/github-runner:*"]
+  }
+
+  statement {
+    sid       = "SecretsManagerAccess"
+    actions   = ["secretsmanager:GetSecretValue"]
+    effect    = "Allow"
+    resources = [data.aws_secretsmanager_secret.github_app.arn]
+  }
+
+  statement {
+    sid       = "KMSDecrypt"
+    actions   = ["kms:Decrypt"]
+    effect    = "Allow"
+    resources = var.kms_key_arn != null ? [var.kms_key_arn] : ["*"]
+  }
+}
+
+# API Gateway Assume Role Policy Document
+data "aws_iam_policy_document" "apigw_sqs_assume_role_doc" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    effect  = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["apigateway.amazonaws.com"]
+    }
+  }
+}
+
+# API Gateway SQS Send Message Policy Document
+data "aws_iam_policy_document" "apigw_sqs_policy_doc" {
+  statement {
+    sid       = "SQSSendMessage"
+    actions   = ["sqs:SendMessage"]
+    effect    = "Allow"
+    resources = [aws_sqs_queue.runner_queue.arn]
+  }
+}
+
+# Lambda Execution Role
+resource "aws_iam_role" "lambda_exec_role" {
+  name               = "${local.resource_name_prefix}-lambda-exec-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_doc.json
+  tags               = local.propagated_tags
+}
+
+resource "aws_iam_policy" "lambda_policy" {
+  name   = "${local.resource_name_prefix}-lambda-policy"
+  policy = data.aws_iam_policy_document.lambda_policy_doc.json
+  tags   = local.propagated_tags
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_attach_policy" {
+  role       = aws_iam_role.lambda_exec_role.name
+  policy_arn = aws_iam_policy.lambda_policy.arn
+}
+
+# EC2 Instance Profile Role
+resource "aws_iam_role" "runner_role" {
+  name               = "${local.resource_name_prefix}-runner-ec2-role"
+  assume_role_policy = data.aws_iam_policy_document.runner_assume_role_doc.json
+  tags               = local.propagated_tags
+}
+
+resource "aws_iam_instance_profile" "runner_instance_profile" {
+  name = "${local.resource_name_prefix}-runner-profile"
+  role = aws_iam_role.runner_role.name
+  tags = local.propagated_tags
+}
+
+resource "aws_iam_policy" "runner_policy" {
+  name   = "${local.resource_name_prefix}-runner-ec2-policy"
+  policy = data.aws_iam_policy_document.runner_policy_doc.json
+  tags   = local.propagated_tags
+}
+
+resource "aws_iam_role_policy_attachment" "runner_attach_policy" {
+  role       = aws_iam_role.runner_role.name
+  policy_arn = aws_iam_policy.runner_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "runner_attach_ssm" {
+  role       = aws_iam_role.runner_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+# API Gateway IAM Role (to send messages to SQS)
+resource "aws_iam_role" "apigw_sqs_role" {
+  name               = "${local.resource_name_prefix}-apigw-sqs-role"
+  assume_role_policy = data.aws_iam_policy_document.apigw_sqs_assume_role_doc.json
+  tags               = local.propagated_tags
+}
+
+resource "aws_iam_policy" "apigw_sqs_policy" {
+  name   = "${local.resource_name_prefix}-apigw-sqs-policy"
+  policy = data.aws_iam_policy_document.apigw_sqs_policy_doc.json
+  tags   = local.propagated_tags
+}
+
+resource "aws_iam_role_policy_attachment" "apigw_sqs_attach_policy" {
+  role       = aws_iam_role.apigw_sqs_role.name
+  policy_arn = aws_iam_policy.apigw_sqs_policy.arn
+}
+
+# IAM role for API Gateway to write to CloudWatch
+resource "aws_iam_role" "apigw_cloudwatch_role" {
+  name = "${local.resource_name_prefix}-apigw-cloudwatch-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = {
+        Service = "apigateway.amazonaws.com"
+      }
+    }]
+  })
 
   tags = local.propagated_tags
 }
 
-resource "aws_lambda_event_source_mapping" "github_sqs_trigger" {
-  event_source_arn        = aws_sqs_queue.runner_queue.arn
-  function_name           = aws_lambda_function.runner_manager.function_name
-  function_response_types = ["ReportBatchItemFailures"]
-  enabled                 = true
-  batch_size              = 10
-  tags                    = local.propagated_tags
+resource "aws_iam_role_policy_attachment" "apigw_cloudwatch_attach" {
+  role       = aws_iam_role.apigw_cloudwatch_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
 }
 
-resource "aws_cloudwatch_log_group" "lambda" {
-  name              = "/aws/lambda/${local.resource_name_prefix}-runner-manager"
-  retention_in_days = 30
-  tags              = local.propagated_tags
+# Account-level setting — tells API Gateway which role to use for CloudWatch
+resource "aws_api_gateway_account" "main" {
+  cloudwatch_role_arn = aws_iam_role.apigw_cloudwatch_role.arn
+}
+
+# Wait for IAM to propagate before creating Lambda
+resource "time_sleep" "wait_for_iam_propagation" {
+  create_duration = "30s"
+
+  depends_on = [
+    aws_iam_role_policy_attachment.lambda_attach_policy,
+    aws_iam_role_policy_attachment.lambda_basic_execution,
+    aws_iam_role_policy_attachment.lambda_sqs_execution,
+    aws_iam_role_policy_attachment.lambda_vpc_access,
+  ]
 }

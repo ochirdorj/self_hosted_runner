@@ -281,3 +281,14 @@ resource "aws_iam_role_policy_attachment" "apigw_cloudwatch_attach" {
 resource "aws_api_gateway_account" "main" {
   cloudwatch_role_arn = aws_iam_role.apigw_cloudwatch_role.arn
 }
+
+resource "time_sleep" "wait_for_iam_propagation" {
+  create_duration = "30s"
+
+  depends_on = [
+    aws_iam_role_policy_attachment.lambda_attach_policy,
+    aws_iam_role_policy_attachment.lambda_basic_execution,
+    aws_iam_role_policy_attachment.lambda_sqs_execution,
+    aws_iam_role_policy_attachment.lambda_vpc_access,
+  ]
+}
