@@ -1,12 +1,7 @@
-  variable "image_id" {
-    type = string
-    description = "AMI image ID"
-  }
-
-  variable "instance_type" {
-    type = list(string)
-    description = "ec2 instance type"
-  }
+variable "instance_type" {
+  type = list(string)
+  description = "ec2 instance type"
+}
 
 variable "Environment" {
   type = string

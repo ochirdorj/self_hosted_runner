@@ -13,6 +13,10 @@ data "aws_secretsmanager_secret" "github_app" {
   name = var.github_app_credentials_secret_name
 }
 
+data "aws_ssm_parameter" "ubuntu_ami" {
+  name = "/aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id"
+}
+
 locals {
   resource_name_prefix = "${var.Environment}-${var.Managed_by}-${var.Project}-${var.Team}-${var.Owner}"
 
@@ -47,7 +51,7 @@ resource "aws_security_group" "runner" {
 
 resource "aws_launch_template" "example" {
   name = var.launch_template
-  image_id    = var.image_id
+  image_id    = data.aws_ssm_parameter.ubuntu_ami.value
   instance_type = var.instance_type[0]
   vpc_security_group_ids = [aws_security_group.runner.id]
 
