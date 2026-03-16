@@ -29,6 +29,10 @@ resource "aws_lambda_function" "runner_manager" {
   timeout          = 30
   memory_size      = 512
 
+    depends_on = [
+    time_sleep.wait_for_iam_propagation    # ← waits 30s after all policies attached
+  ]
+
   lifecycle {
     create_before_destroy = true
   }
