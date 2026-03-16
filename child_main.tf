@@ -51,7 +51,7 @@ resource "aws_security_group" "runner" {
 
 resource "aws_launch_template" "example" {
   name = var.launch_template
-  image_id    = data.aws_ssm_parameter.ubuntu_ami.insecure_value
+  image_id    = nonsensitive(data.aws_ssm_parameter.ubuntu_ami.value)
   instance_type = var.instance_type[0]
   vpc_security_group_ids = [aws_security_group.runner.id]
 
