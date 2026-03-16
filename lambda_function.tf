@@ -23,7 +23,7 @@ resource "aws_lambda_function" "runner_manager" {
   function_name    = "${local.resource_name_prefix}-runner-manager"
   role             = aws_iam_role.lambda_exec_role.arn
   handler          = "index.handler"
-  runtime          = "nodejs22.x"
+  runtime          = "nodejs24.x"
   source_code_hash = filebase64sha256(var.lambda_zip_path)
   architectures    = ["x86_64"]
   timeout          = 30
