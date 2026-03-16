@@ -76,3 +76,8 @@ variable "kms_key_arn" {
   type = string
   description = "KMS Key ARN for encrypting secrets (optional, but recommended)"
 }
+
+variable "lambda_zip_path" {
+  type        = string
+  description = "Path to the pre-built Lambda zip file"
+}
