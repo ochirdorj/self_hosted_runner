@@ -81,8 +81,3 @@ variable "aws_region" {
   description = "AWS region"
   type        = string
 }
-
-variable "runner_ami_id" {
-  description = "Pre-baked AMI ID from ami_builder module"
-  type        = string
-}
