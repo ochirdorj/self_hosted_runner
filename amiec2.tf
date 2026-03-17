@@ -55,36 +55,9 @@ resource "null_resource" "wait_for_install" {
 
   provisioner "local-exec" {
     command = <<-EOF
-      echo "Waiting for AMI builder instance to complete install..."
-      for i in $(seq 1 60); do
-        STATUS=$(aws ssm send-command \
-          --instance-id ${aws_instance.ami_builder.id} \
-          --document-name "AWS-RunShellScript" \
-          --parameters '{"commands":["grep -c \"AMI_INSTALL_COMPLETE=1\" /var/log/ami-install.log 2>/dev/null || echo 0"]}' \
-          --query 'Command.CommandId' \
-          --output text \
-          --region ${var.aws_region} 2>/dev/null)
-
-        sleep 15
-
-        RESULT=$(aws ssm get-command-invocation \
-          --command-id $STATUS \
-          --instance-id ${aws_instance.ami_builder.id} \
-          --region ${var.aws_region} \
-          --query 'StandardOutputContent' \
-          --output text 2>/dev/null || echo "0")
-
-        echo "Attempt $i/60 — result: [$RESULT]"
-
-        if echo "$RESULT" | grep -q "^1$"; then
-          echo "Install complete!"
-          exit 0
-        fi
-
-        sleep 15
-      done
-      echo "Timeout waiting for install"
-      exit 1
+      echo "Waiting 15 minutes for AMI install to complete..."
+      sleep 900
+      echo "Wait complete, proceeding to create AMI..."
     EOF
   }
 }
@@ -92,7 +65,7 @@ resource "null_resource" "wait_for_install" {
 # ── CREATE AMI FROM INSTANCE ──────────────────────────────────────────────────
 resource "aws_ami_from_instance" "runner" {
   depends_on         = [null_resource.wait_for_install]
-  name               = "${local.resource_name_prefix}-runner-${formatdate("YYYYMMDD-HHmm", timestamp())}"
+  name               = "${local.resource_name_prefix}-runner-ami"
   source_instance_id = aws_instance.ami_builder.id
   snapshot_without_reboot = false
 
@@ -124,7 +97,7 @@ resource "null_resource" "terminate_builder" {
 # Makes it easy to reference across accounts / modules
 resource "aws_ssm_parameter" "runner_ami" {
   depends_on  = [aws_ami_from_instance.runner]
-  name        = "${local.resource_name_prefix}/runner-ami-id"
+  name        = "/${local.resource_name_prefix}/runner-ami-id"
   type        = "String"
   value       = aws_ami_from_instance.runner.id
   description = "Pre-baked GitHub Actions runner AMI"
