@@ -56,7 +56,9 @@ curl -fsSL https://raw.githubusercontent.com/terraform-linters/tflint/master/ins
 tflint --version
 
 # ── 7. CHECKOV ─────────────────────────────────────────────────────────────────
-pip3 install checkov --upgrade --break-system-packages
+python3 -m venv /opt/checkov-venv
+/opt/checkov-venv/bin/pip install checkov --upgrade
+ln -s /opt/checkov-venv/bin/checkov /usr/local/bin/checkov
 checkov --version
 
 # ── 8. DOCKER ──────────────────────────────────────────────────────────────────
@@ -83,3 +85,4 @@ chown -R ubuntu:ubuntu /home/ubuntu/actions-runner
 echo "=============================="
 echo " AMI install complete!"
 echo "=============================="
+echo "AMI_INSTALL_COMPLETE=1"

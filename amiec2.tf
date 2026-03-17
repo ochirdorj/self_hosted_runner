@@ -60,7 +60,7 @@ resource "null_resource" "wait_for_install" {
         STATUS=$(aws ssm send-command \
           --instance-id ${aws_instance.ami_builder.id} \
           --document-name "AWS-RunShellScript" \
-          --parameters '{"commands":["grep -c \"AMI install complete\" /var/log/ami-install.log 2>/dev/null || echo 0"]}' \
+          --parameters '{"commands":["grep -c \"AMI_INSTALL_COMPLETE=1\" /var/log/ami-install.log 2>/dev/null || echo 0"]}' \
           --query 'Command.CommandId' \
           --output text \
           --region ${var.aws_region} 2>/dev/null)
@@ -76,7 +76,7 @@ resource "null_resource" "wait_for_install" {
 
         echo "Attempt $i/60 — result: [$RESULT]"
 
-        if [ "$(echo $RESULT | tr -d '[:space:]')" = "1" ]; then
+        if echo "$RESULT" | grep -q "^1$"; then
           echo "Install complete!"
           exit 0
         fi
