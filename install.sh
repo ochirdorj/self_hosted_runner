@@ -1,17 +1,22 @@
 #!/bin/bash
-set -ex
 exec > /var/log/ami-install.log 2>&1
+set -ex
+
+# SSM Agent
+snap install amazon-ssm-agent --classic || true
+systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service || true
+systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service || true
+sleep 30
 
 echo "=============================="
 echo " Starting AMI dependency install"
 echo "=============================="
 
-# ── 1. SYSTEM UPDATE ──────────────────────────────────────────────────────────
+# 1. SYSTEM UPDATE
 for i in 1 2 3; do
   apt-get update -y && break
   sleep 10
 done
-apt-get upgrade -y
 
 # ── 2. CORE PACKAGES ──────────────────────────────────────────────────────────
 apt-get install -y \

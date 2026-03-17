@@ -31,7 +31,7 @@ resource "aws_instance" "ami_builder" {
   iam_instance_profile        = aws_iam_instance_profile.ami_builder.name
   associate_public_ip_address = false
 
-  user_data = base64encode(file("${path.module}/install.sh"))
+  user_data_base64 = base64encode(file("${path.module}/install.sh"))
 
   # Wait for user-data to finish before snapshotting
   user_data_replace_on_change = true
@@ -65,7 +65,7 @@ resource "null_resource" "wait_for_install" {
           --output text \
           --region ${var.aws_region} 2>/dev/null)
 
-        sleep 5
+        sleep 15
 
         RESULT=$(aws ssm get-command-invocation \
           --command-id $STATUS \
@@ -74,13 +74,14 @@ resource "null_resource" "wait_for_install" {
           --query 'StandardOutputContent' \
           --output text 2>/dev/null || echo "0")
 
-        if [ "$RESULT" = "1" ]; then
+        echo "Attempt $i/60 — result: [$RESULT]"
+
+        if [ "$(echo $RESULT | tr -d '[:space:]')" = "1" ]; then
           echo "Install complete!"
           exit 0
         fi
 
-        echo "Attempt $i/60 — still installing..."
-        sleep 25
+        sleep 15
       done
       echo "Timeout waiting for install"
       exit 1
