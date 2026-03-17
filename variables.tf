@@ -76,3 +76,13 @@ variable "lambda_zip_path" {
   type        = string
   description = "Path to the pre-built Lambda zip file"
 }
+
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "runner_ami_id" {
+  description = "Pre-baked AMI ID from ami_builder module"
+  type        = string
+}
