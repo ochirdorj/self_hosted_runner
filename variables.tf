@@ -1,70 +1,70 @@
 variable "instance_type" {
-  type = list(string)
+  type        = list(string)
   description = "ec2 instance type"
 }
 
 variable "Environment" {
-  type = string
+  type        = string
   description = "tag for asg"
 }
 
 variable "Managed_by" {
-  type = string
+  type        = string
   description = "Managed by tag"
 }
 
 variable "Project" {
-  type = string
+  type        = string
   description = "tag for asg"
 }
 
 variable "Team" {
-  type = string
+  type        = string
   description = "tag for asg"
 }
 
 variable "Owner" {
-  type = string
+  type        = string
   description = "tag for asg"
 }
 
 variable "root_volume_size" {
-  type = number
+  type        = number
   description = "size of ebs volume"
 }
 
 variable "vpc_id" {
-  type = string
+  type        = string
   description = "VPC ID"
 }
 
 variable "lambda_subnets" {
-  type = list(string)
+  type        = list(string)
   description = "private subnets"
 }
 
 variable "github_app_credentials_secret_name" {
-    type = string
-    description = "just leave it as is"
-  }
+  type        = string
+  description = "just leave it as is"
+}
 
 variable "runner_labels" {
-  type = string
+  type        = string
   description = "runner labels"
 }
 
 variable "launch_template" {
-  type = string
+  type        = string
   description = "name of the launch template"
 }
 
 variable "create_spot_role" {
-  type = bool
+  type        = bool
   description = "enable or disable service linked role"
 }
 variable "stage_name" {
-type = string
-description = "API Gateway stage name"  
+  type        = string
+  description = "API Gateway stage name"
 }
 
 variable "kms_key_arn" {
@@ -79,7 +79,7 @@ variable "lambda_zip_path" {
 }
 
 variable "image_id" {
-  type = string
+  type        = string
   description = "image id of self hosted runner"
 }
 

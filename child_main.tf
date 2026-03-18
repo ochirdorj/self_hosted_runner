@@ -21,11 +21,11 @@ locals {
   resource_name_prefix = "${var.Environment}-${var.Managed_by}-${var.Project}-${var.Team}-${var.Owner}"
 
   propagated_tags = {
-    Environment  = var.Environment
-    Managed_By   = var.Managed_by
-    Project      = var.Project
-    Team         = var.Team
-    Owner        = var.Owner
+    Environment = var.Environment
+    Managed_By  = var.Managed_by
+    Project     = var.Project
+    Team        = var.Team
+    Owner       = var.Owner
   }
 }
 
@@ -50,9 +50,9 @@ resource "aws_security_group" "runner" {
 
 
 resource "aws_launch_template" "example" {
-  name = var.launch_template
-  image_id = var.image_id
-  instance_type = var.instance_type[0]
+  name                   = var.launch_template
+  image_id               = var.image_id
+  instance_type          = var.instance_type[0]
   vpc_security_group_ids = [aws_security_group.runner.id]
 
   tags = merge(local.propagated_tags, {
@@ -66,13 +66,13 @@ resource "aws_launch_template" "example" {
   block_device_mappings {
     device_name = "/dev/sda1"
     ebs {
-    volume_size = var.root_volume_size
-    volume_type = "gp3"
-    delete_on_termination = true
-    encrypted = true
+      volume_size           = var.root_volume_size
+      volume_type           = "gp3"
+      delete_on_termination = true
+      encrypted             = true
     }
   }
-  
+
   monitoring {
     enabled = true
   }
@@ -93,11 +93,11 @@ resource "aws_launch_template" "example" {
     tags = merge(local.propagated_tags, {
       Name = "${local.resource_name_prefix}-runner"
     })
-    }
-  
-    metadata_options {
-    http_endpoint           = "enabled"
-    http_tokens             = "required"
+  }
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
     http_put_response_hop_limit = 2
   }
-  }
+}

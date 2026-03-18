@@ -42,7 +42,7 @@ data "aws_iam_policy_document" "lambda_policy_doc" {
   }
 
   statement {
-    sid     = "EC2Describe"
+    sid = "EC2Describe"
     actions = [
       "ec2:DescribeInstances",
       "ec2:DescribeLaunchTemplates",
@@ -60,9 +60,9 @@ data "aws_iam_policy_document" "lambda_policy_doc" {
   }
 
   statement {
-    sid     = "EC2RestrictedTerminate"
-    actions = ["ec2:TerminateInstances"]
-    effect  = "Allow"
+    sid       = "EC2RestrictedTerminate"
+    actions   = ["ec2:TerminateInstances"]
+    effect    = "Allow"
     resources = ["*"]
     condition {
       test     = "StringEquals"
@@ -79,7 +79,7 @@ data "aws_iam_policy_document" "lambda_policy_doc" {
   }
 
   statement {
-    sid     = "VPCAccess"
+    sid = "VPCAccess"
     actions = [
       "ec2:CreateNetworkInterface",
       "ec2:DescribeNetworkInterfaces",
@@ -90,7 +90,7 @@ data "aws_iam_policy_document" "lambda_policy_doc" {
   }
 
   statement {
-    sid     = "SQSConsumption"
+    sid = "SQSConsumption"
     actions = [
       "sqs:ReceiveMessage",
       "sqs:DeleteMessage",
@@ -141,7 +141,7 @@ data "aws_iam_policy_document" "runner_assume_role_doc" {
 data "aws_iam_policy_document" "runner_policy_doc" {
 
   statement {
-    sid     = "CloudWatchLogs"
+    sid = "CloudWatchLogs"
     actions = [
       "logs:CreateLogGroup",
       "logs:CreateLogStream",
@@ -260,8 +260,8 @@ resource "aws_iam_role" "apigw_cloudwatch_role" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
       Principal = {
         Service = "apigateway.amazonaws.com"
       }

@@ -1,20 +1,20 @@
 # SQS QUEUE AND API GATEWAY
 
 resource "aws_sqs_queue" "runner_queue_dead_letter" {
-  name = "${local.resource_name_prefix}-runner-queue-dlq"
-  tags = local.propagated_tags
+  name                    = "${local.resource_name_prefix}-runner-queue-dlq"
+  tags                    = local.propagated_tags
   sqs_managed_sse_enabled = true
 }
 
 # Main SQS Queue (Throttling & Decoupling)
 resource "aws_sqs_queue" "runner_queue" {
-  name                        = "${local.resource_name_prefix}-runner-queue"
-  delay_seconds               = 0
-  max_message_size            = 262144
-  message_retention_seconds   = 345600 # 4 days
-  receive_wait_time_seconds   = 10
-  visibility_timeout_seconds  = 300    # 5 minutes
-  sqs_managed_sse_enabled = true
+  name                       = "${local.resource_name_prefix}-runner-queue"
+  delay_seconds              = 0
+  max_message_size           = 262144
+  message_retention_seconds  = 345600 # 4 days
+  receive_wait_time_seconds  = 10
+  visibility_timeout_seconds = 300 # 5 minutes
+  sqs_managed_sse_enabled    = true
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.runner_queue_dead_letter.arn
@@ -28,7 +28,7 @@ resource "aws_sqs_queue" "runner_queue" {
 resource "aws_api_gateway_rest_api" "github_webhook_api" {
   name        = "${local.resource_name_prefix}-webhook-api"
   description = "Endpoint for GitHub Actions workflow_job webhooks."
-  tags = local.propagated_tags
+  tags        = local.propagated_tags
 }
 
 resource "aws_api_gateway_resource" "webhook_resource" {
@@ -41,7 +41,7 @@ resource "aws_api_gateway_method" "post_method" {
   rest_api_id   = aws_api_gateway_rest_api.github_webhook_api.id
   resource_id   = aws_api_gateway_resource.webhook_resource.id
   http_method   = "POST"
-  authorization = "NONE" 
+  authorization = "NONE"
 }
 
 # Integration: API Gateway -> Webhook Validator Lambda
@@ -69,7 +69,7 @@ resource "aws_api_gateway_method_response" "success_response" {
 resource "aws_api_gateway_deployment" "deployment" {
   rest_api_id = aws_api_gateway_rest_api.github_webhook_api.id
 
-  depends_on = [ aws_api_gateway_integration.sqs_integration ]
+  depends_on = [aws_api_gateway_integration.sqs_integration]
 
   triggers = {
     redeployment = sha1(join("", [
@@ -88,22 +88,22 @@ resource "aws_api_gateway_deployment" "deployment" {
 resource "aws_api_gateway_stage" "dev" {
   deployment_id = aws_api_gateway_deployment.deployment.id
   rest_api_id   = aws_api_gateway_rest_api.github_webhook_api.id
-  stage_name    = var.stage_name   
+  stage_name    = var.stage_name
   tags          = local.propagated_tags
 
-  depends_on = [ aws_api_gateway_account.main ]
+  depends_on = [aws_api_gateway_account.main]
 
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api_gateway.arn
     format = jsonencode({
-    requestId      = "$context.requestId"
-    ip             = "$context.identity.sourceIp"
-    requestTime    = "$context.requestTime"
-    httpMethod     = "$context.httpMethod"
-    resourcePath   = "$context.resourcePath"
-    status         = "$context.status"
-    responseLength = "$context.responseLength"
-    errorMessage   = "$context.error.message"
+      requestId      = "$context.requestId"
+      ip             = "$context.identity.sourceIp"
+      requestTime    = "$context.requestTime"
+      httpMethod     = "$context.httpMethod"
+      resourcePath   = "$context.resourcePath"
+      status         = "$context.status"
+      responseLength = "$context.responseLength"
+      errorMessage   = "$context.error.message"
     })
   }
 }
