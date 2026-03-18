@@ -68,8 +68,9 @@ description = "API Gateway stage name"
 }
 
 variable "kms_key_arn" {
-  type = string
+  type        = string
   description = "KMS Key ARN for encrypting secrets (optional, but recommended)"
+  default     = null
 }
 
 variable "lambda_zip_path" {
@@ -77,7 +78,18 @@ variable "lambda_zip_path" {
   description = "Path to the pre-built Lambda zip file"
 }
 
-variable "aws_region" {
-  description = "AWS region"
+variable "image_id" {
+  type = string
+  description = "image id of self hosted runner"
+}
+
+variable "webhook_lambda_zip_path" {
   type        = string
+  description = "Path to the pre-built webhook validator Lambda zip file"
+}
+
+variable "webhook_secret_key" {
+  type        = string
+  description = "Key name in the Secrets Manager JSON that holds the GitHub webhook secret"
+  default     = "webhook_secret"
 }

@@ -24,7 +24,7 @@ resource "aws_lambda_function" "runner_manager" {
   role             = aws_iam_role.lambda_exec_role.arn
   handler          = "index.handler"
   runtime          = "nodejs22.x"
-  source_code_hash = fileexists(var.lambda_zip_path) ? filebase64sha256(var.lambda_zip_path) : null
+  source_code_hash = try(filebase64sha256(var.lambda_zip_path), null)
   architectures    = ["x86_64"]
   timeout          = 30
   memory_size      = 512

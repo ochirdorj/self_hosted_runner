@@ -44,28 +44,14 @@ resource "aws_api_gateway_method" "post_method" {
   authorization = "NONE" 
 }
 
-# Integration: API Gateway -> SQS
+# Integration: API Gateway -> Webhook Validator Lambda
 resource "aws_api_gateway_integration" "sqs_integration" {
   rest_api_id             = aws_api_gateway_rest_api.github_webhook_api.id
   resource_id             = aws_api_gateway_resource.webhook_resource.id
   http_method             = aws_api_gateway_method.post_method.http_method
-  type                    = "AWS"
+  type                    = "AWS_PROXY"
   integration_http_method = "POST"
-  
-  uri                     = "arn:aws:apigateway:${data.aws_region.current.id}:sqs:path/${data.aws_caller_identity.current.account_id}/${aws_sqs_queue.runner_queue.name}"
-  
-  credentials             = aws_iam_role.apigw_sqs_role.arn
-  passthrough_behavior    = "NEVER"
-
-  request_parameters = {
-    "integration.request.header.Content-Type" = "'application/x-www-form-urlencoded'"
-  }
-
-  request_templates = {
-    "application/json" = <<-EOF
-      Action=SendMessage&MessageBody=$input.body
-      EOF
-  }
+  uri                     = aws_lambda_function.webhook_validator.invoke_arn
 }
 
 resource "aws_api_gateway_method_response" "success_response" {
@@ -79,24 +65,11 @@ resource "aws_api_gateway_method_response" "success_response" {
   }
 }
 
-resource "aws_api_gateway_integration_response" "sqs_integration_response" {
-  rest_api_id             = aws_api_gateway_rest_api.github_webhook_api.id
-  resource_id             = aws_api_gateway_resource.webhook_resource.id
-  http_method             = aws_api_gateway_method.post_method.http_method
-  status_code             = aws_api_gateway_method_response.success_response.status_code
-  depends_on = [ aws_api_gateway_integration.sqs_integration ]
-  selection_pattern       = "200"
-  response_templates      = {
-    "application/json" = "{ \"status\": \"OK\" }"
-  }
-}
 
 resource "aws_api_gateway_deployment" "deployment" {
   rest_api_id = aws_api_gateway_rest_api.github_webhook_api.id
 
-  depends_on = [ aws_api_gateway_integration.sqs_integration,
-                 aws_api_gateway_integration_response.sqs_integration_response
-   ]
+  depends_on = [ aws_api_gateway_integration.sqs_integration ]
 
   triggers = {
     redeployment = sha1(join("", [
