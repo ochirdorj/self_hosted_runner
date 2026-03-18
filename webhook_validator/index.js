@@ -50,8 +50,7 @@ function verifySignature(secret, rawBody, sigHeader) {
 }
 
 exports.handler = async (event) => {
-  // GitHub always lowercases headers in API Gateway payload format v1
-  const sigHeader = event.headers?.['x-hub-signature-256'];
+  const sigHeader = event.headers?.['x-hub-signature-256'] ?? event.headers?.['X-Hub-Signature-256'];
 
   if (!sigHeader) {
     console.warn('Rejected: missing X-Hub-Signature-256 header');
